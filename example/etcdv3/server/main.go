@@ -13,27 +13,33 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
 
-var InstanceID = os.Getenv("INSTANCE_ID")
-
 type EchoServer struct{}
 
+var count int64
+
 func (EchoServer) Echo(ctx context.Context, req *proto.EchoReq) (resp *proto.EchoResp, err error) {
-	log.Printf("handle grpc req...")
+	new := atomic.AddInt64(&count, 1)
+	log.Printf("handle grpc req#[%d]", new)
 	return &proto.EchoResp{
-		Msg: InstanceID,
+		Msg: *svcName,
 	}, err
 }
 
+var svcName = flag.String("sn", "svc1", "service name")
+var weight = flag.Int("w", 100, "weight")
+
 func main() {
+
 	port := flag.Int("port", 6060, "port")
 	flag.Parse()
 
 	r, err := etcdv3.New(clientv3.Config{
-		Endpoints:   []string{"192.168.50.12:2379"},
+		Endpoints:   []string{"192.168.50.10:2379"},
 		DialTimeout: time.Second * 5,
 	})
 	if err != nil {
@@ -49,10 +55,11 @@ func main() {
 	proto.RegisterEchoSvcServer(s, &EchoServer{})
 
 	errCh := r.Register(instance.Instance{
-		Env:   "dev",
-		AppID: "echo",
-		Addr:  "127.0.0.1",
-		Port:  *port,
+		Env:      "dev",
+		AppID:    "echo",
+		Addr:     "127.0.0.1",
+		Port:     *port,
+		Metadata: instance.Metadata{"weight": *weight},
 	})
 
 	go func() {

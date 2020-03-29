@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"github.com/ymcvalu/grpc-discovery/pkg/instance"
 	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/mvcc/mvccpb"
 	"google.golang.org/grpc/resolver"
-
 	"log"
 	"sync"
 	"time"
@@ -23,7 +21,7 @@ type etcdResolver struct {
 	backoff   func(int) time.Duration
 }
 
-func (r *etcdResolver) ResolveNow(resolver.ResolveNowOption) {
+func (r *etcdResolver) ResolveNow(resolver.ResolveNowOptions) {
 }
 
 func (r *etcdResolver) Close() {
@@ -65,11 +63,11 @@ func (r *etcdResolver) watch() {
 			inst.Decode(kv.Value)
 			insts[string(kv.Key)] = &inst
 		}
-
 		addrs := r.insts2Addrs(insts)
 		r.cc.UpdateState(resolver.State{
 			Addresses: addrs,
 		})
+
 		break
 	}
 
@@ -77,34 +75,40 @@ func (r *etcdResolver) watch() {
 		return
 	}
 
-	watchCh = r.client.Watch(context.Background(), r.key, clientv3.WithPrefix(), clientv3.WithProgressNotify(), clientv3.WithRev(rev+1))
+	cctx, cancel := context.WithCancel(context.Background())
+	watchCh = r.client.Watch(cctx, r.key, clientv3.WithPrefix(), clientv3.WithProgressNotify(), clientv3.WithRev(rev+1))
 
 	for {
 		select {
 		case <-r.done:
+			cancel()
 			return
 
 		case event := <-watchCh:
 			if event.Canceled {
+				log.Printf("failed to watch server addresses changed, caused by: %v", event.Err())
+				cancel()
 				if r.hasClosed() {
-					watchCh = nil
+					return
 				} else {
 					delay := r.backoff(retryTimes)
 					retryTimes++
 					time.Sleep(delay)
-					watchCh = r.client.Watch(context.Background(), r.key, clientv3.WithPrefix(), clientv3.WithProgressNotify(), clientv3.WithRev(rev+1))
+					cctx, cancel = context.WithCancel(context.Background())
+					watchCh = r.client.Watch(cctx, r.key, clientv3.WithPrefix(), clientv3.WithProgressNotify(), clientv3.WithRev(rev+1))
 				}
 				continue
 			}
 
 			for _, ev := range event.Events {
 				key := string(ev.Kv.Key)
+				ev.IsCreate()
 				switch ev.Type {
-				case mvccpb.PUT:
+				case clientv3.EventTypePut:
 					inst := instance.Instance{}
 					inst.Decode(ev.Kv.Value)
-					insts[key ] = &inst
-				case mvccpb.DELETE:
+					insts[key] = &inst
+				case clientv3.EventTypeDelete:
 					delete(insts, key)
 				}
 			}
@@ -115,7 +119,6 @@ func (r *etcdResolver) watch() {
 		}
 
 		addrs := r.insts2Addrs(insts)
-
 		r.cc.UpdateState(resolver.State{
 			Addresses: addrs,
 		})
@@ -132,6 +135,8 @@ func (r *etcdResolver) insts2Addrs(insts map[string]*instance.Instance) []resolv
 
 		if r.mdConvert != nil && len(v.Metadata) > 0 {
 			addr.Metadata = r.mdConvert(v.Metadata)
+		} else {
+			addr.Metadata = &v.Metadata // the addr.Metadata will be hashed, so we should use pointer
 		}
 
 		addrs = append(addrs, addr)

@@ -60,7 +60,7 @@ type etcdBuilder struct {
 	opts *Options
 }
 
-func (b *etcdBuilder) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOption) (resolver.Resolver, error) {
+func (b *etcdBuilder) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
 	key := path.Join(b.opts.prefix, target.Endpoint)
 	r := &etcdResolver{
 		cc:        cc,

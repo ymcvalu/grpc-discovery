@@ -1,10 +1,11 @@
 package instance
 
 import (
+	"bytes"
 	"encoding/json"
 )
 
-type Metadata map[string]string
+type Metadata map[string]interface{}
 
 type MetadataConvert func(Metadata) interface{}
 
@@ -16,8 +17,8 @@ type Instance struct {
 	Metadata Metadata
 }
 
-func (m Metadata) ToMap() map[string]string {
-	return map[string]string(m )
+func (m Metadata) ToMap() map[string]interface{} {
+	return map[string]interface{}(m)
 }
 
 func (inst *Instance) Encode() string {
@@ -26,5 +27,8 @@ func (inst *Instance) Encode() string {
 }
 
 func (inst *Instance) Decode(byts []byte) {
-	json.Unmarshal(byts, inst)
+	buf := bytes.NewBuffer(byts)
+	decoder := json.NewDecoder(buf)
+	decoder.UseNumber()
+	decoder.Decode(inst)
 }

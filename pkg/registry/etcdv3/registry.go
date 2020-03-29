@@ -41,7 +41,7 @@ type Registry struct {
 	wg       sync.WaitGroup
 }
 
-func New(cfg clientv3.Config, opts ... Option) (registry.Registry, error) {
+func New(cfg clientv3.Config, opts ...Option) (registry.Registry, error) {
 
 	client, err := clientv3.New(cfg)
 	if err != nil {
@@ -70,7 +70,7 @@ func New(cfg clientv3.Config, opts ... Option) (registry.Registry, error) {
 	return r, nil
 }
 
-func (r *Registry) Register(inst instance.Instance) (<-chan error) {
+func (r *Registry) Register(inst instance.Instance) <-chan error {
 	errCh := make(chan error, 1)
 
 	if dup := func() bool {
@@ -103,7 +103,6 @@ func (r *Registry) Register(inst instance.Instance) (<-chan error) {
 		defer r.wg.Done()
 		key := path.Join(r.opts.prefix, inst.Env, inst.AppID, fmt.Sprintf("%s:%d", inst.Addr, inst.Port))
 		val := inst.Encode()
-
 		cctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 		lease, err := r.client.Grant(cctx, r.opts.ttl)
 		cancel()

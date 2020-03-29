@@ -55,6 +55,8 @@ func (r *consulResolver) watch() {
 			}
 			if r.mdConvert != nil && len(svc.Meta) > 0 {
 				addresses[i].Metadata = r.mdConvert(svc.Meta)
+			} else {
+				addresses[i].Metadata = &svc.Meta
 			}
 		}
 
