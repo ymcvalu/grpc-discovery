@@ -11,7 +11,7 @@ import (
 
 func main() {
 	log.Println("client begin...")
-
+	// etcd://username:password@etcd1,etcd2,etcd3?timeout=5s/dev/app
 	conn, err := grpc.Dial("etcd://192.168.50.10:2379?timeout=5s/dev/echo", grpc.WithInsecure(), grpc.WithBalancerName(smooth_weighted.Name), grpc.WithBlock())
 	if err != nil {
 		log.Fatal(err)
