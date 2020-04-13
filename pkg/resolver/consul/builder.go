@@ -3,51 +3,39 @@ package consul
 import (
 	"github.com/hashicorp/consul/api"
 	"github.com/ymcvalu/grpc-discovery/pkg/backoff"
-	"github.com/ymcvalu/grpc-discovery/pkg/instance"
+	"github.com/ymcvalu/grpc-discovery/pkg/config"
 	"google.golang.org/grpc/resolver"
 	"time"
 )
 
-func WithMdConvert(mc instance.MetadataConvert) Option {
-	return func(opts *Options) {
-		opts.mdConvert = mc
-	}
-}
+var (
+	DC       = "dc1"
+	MaxDelay = 5 * time.Second
+)
 
-func WithDataCenter(dc string) Option {
-	return func(opts *Options) {
-		opts.dc = dc
-	}
-}
-
-func WithMaxDelay(maxDelay time.Duration) Option {
-	return func(opts *Options) {
-		opts.maxDelay = maxDelay
-	}
-}
-
-type Option func(opts *Options)
-
-type Options struct {
-	mdConvert instance.MetadataConvert
-	dc        string
-	addr      string
-	maxDelay  time.Duration
+func init() {
+	resolver.Register(&consulBuilder{})
 }
 
 // consulBuilder creates a consulResolver that will be used to watch name resolution updates.
-type consulBuilder struct {
-	opts Options
-}
+type consulBuilder struct{}
 
 func (b *consulBuilder) Scheme() string {
 	return "consul"
 }
 
 func (b *consulBuilder) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOption) (resolver.Resolver, error) {
+	cfg, err := config.Parse(target.Authority)
+	if err != nil {
+		return nil, err
+	}
 	client, err := api.NewClient(&api.Config{
-		Datacenter: b.opts.dc,
-		Address:    b.opts.addr,
+		Datacenter: DC,
+		Address:    cfg.Endpoints[0],
+		HttpAuth: &api.HttpBasicAuth{
+			Username: cfg.Username,
+			Password: cfg.Password,
+		},
 	})
 
 	if err != nil {
@@ -55,37 +43,15 @@ func (b *consulBuilder) Build(target resolver.Target, cc resolver.ClientConn, op
 	}
 
 	r := &consulResolver{
-		cc:        cc,
-		client:    client,
-		dc:        b.opts.dc,
-		mdConvert: b.opts.mdConvert,
-		key:       target.Endpoint,
-		done:      make(chan struct{}),
-		backoff:   backoff.New(b.opts.maxDelay).Backoff,
+		cc:      cc,
+		client:  client,
+		dc:      DC,
+		key:     target.Endpoint,
+		done:    make(chan struct{}),
+		backoff: backoff.New(MaxDelay).Backoff,
 	}
 
 	go r.watch()
 
 	return r, nil
-}
-
-func Init(addr string, opts ...Option) {
-	_opts := Options{}
-
-	for _, opt := range opts {
-		opt(&_opts)
-	}
-
-	if _opts.dc == "" {
-		_opts.dc = "dc1"
-	}
-
-	if _opts.maxDelay <= 0 {
-		_opts.maxDelay = time.Second * 5
-	}
-	_opts.addr = addr
-
-	resolver.Register(&consulBuilder{
-		opts: _opts,
-	})
 }

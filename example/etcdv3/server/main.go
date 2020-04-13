@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -59,7 +60,7 @@ func main() {
 		AppID:    "echo",
 		Addr:     "127.0.0.1",
 		Port:     *port,
-		Metadata: instance.Metadata{"weight": *weight},
+		Metadata: instance.Metadata{"weight": strconv.Itoa(*weight)},
 	})
 
 	go func() {

@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 )
 
-type Metadata map[string]interface{}
-
-type MetadataConvert func(Metadata) interface{}
+type Metadata map[string]string
 
 type Instance struct {
 	Env      string
@@ -17,8 +15,8 @@ type Instance struct {
 	Metadata Metadata
 }
 
-func (m Metadata) ToMap() map[string]interface{} {
-	return map[string]interface{}(m)
+func (m Metadata) ToMap() map[string]string {
+	return map[string]string(m)
 }
 
 func (inst *Instance) Encode() string {

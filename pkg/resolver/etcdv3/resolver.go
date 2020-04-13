@@ -12,13 +12,12 @@ import (
 )
 
 type etcdResolver struct {
-	done      chan struct{}
-	doneOnce  sync.Once
-	cc        resolver.ClientConn
-	client    *clientv3.Client
-	key       string
-	mdConvert instance.MetadataConvert
-	backoff   func(int) time.Duration
+	done     chan struct{}
+	doneOnce sync.Once
+	cc       resolver.ClientConn
+	client   *clientv3.Client
+	key      string
+	backoff  func(int) time.Duration
 }
 
 func (r *etcdResolver) ResolveNow(resolver.ResolveNowOptions) {
@@ -133,12 +132,7 @@ func (r *etcdResolver) insts2Addrs(insts map[string]*instance.Instance) []resolv
 			ServerName: v.AppID,
 		}
 
-		if r.mdConvert != nil && len(v.Metadata) > 0 {
-			addr.Metadata = r.mdConvert(v.Metadata)
-		} else {
-			addr.Metadata = &v.Metadata // the addr.Metadata will be hashed, so we should use pointer
-		}
-
+		addr.Metadata = &v.Metadata // the addr.Metadata will be hashed, so we should use pointer
 		addrs = append(addrs, addr)
 	}
 	return addrs

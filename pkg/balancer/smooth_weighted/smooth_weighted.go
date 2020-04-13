@@ -5,10 +5,13 @@ import (
 	"github.com/ymcvalu/grpc-discovery/pkg/instance"
 	"google.golang.org/grpc/balancer"
 	"google.golang.org/grpc/balancer/base"
+	"strconv"
 	"sync"
 )
 
 const Name = "smooth_weighted"
+const WeightTag = "weight"
+const defaultWeight = 0
 
 func newBuilder() balancer.Builder {
 	return base.NewBalancerBuilderV2(Name, &smoothWeightPickerBuilder{}, base.Config{HealthCheck: true})
@@ -30,23 +33,21 @@ func (*smoothWeightPickerBuilder) Build(info base.PickerBuildInfo) balancer.V2Pi
 
 	p.weightPeers = make([]weightPeer, 0, len(info.ReadySCs))
 	for sc, info := range info.ReadySCs {
-		weight := 0
+		w := defaultWeight
 
 		switch md := info.Address.Metadata.(type) {
-		case map[string]interface{}:
-			w, _ := md["weight"].(json.Number).Int64()
-			weight = int(w)
+		case *map[string]string:
+			w = weight(*md)
 		case *instance.Metadata:
-			w, _ := (*md)["weight"].(json.Number).Int64()
-			weight = int(w)
+			w = weight(map[string]string(*md ))
+		case string:
+			w = weight(parseMetadata(md))
 		}
 
-		wp := weightPeer{
+		p.weightPeers = append(p.weightPeers, weightPeer{
 			subConn: sc,
-			weight:  weight,
-		}
-
-		p.weightPeers = append(p.weightPeers, wp)
+			weight:  w,
+		})
 	}
 
 	return &p
@@ -89,4 +90,19 @@ func (p *smoothWeightPicker) Pick(balancer.PickInfo) (balancer.PickResult, error
 	p.weightPeers[best].currentWeight -= total
 
 	return balancer.PickResult{SubConn: p.weightPeers[best].subConn}, nil
+}
+
+func weight(md map[string]string) int {
+	w := defaultWeight
+	_w, err := strconv.Atoi(md[WeightTag])
+	if err == nil {
+		w = _w
+	}
+	return w
+}
+
+func parseMetadata(s string) map[string]string {
+	md := make(map[string]string)
+	json.Unmarshal([]byte(s), &md)
+	return md
 }

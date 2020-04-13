@@ -3,7 +3,6 @@ package consul
 import (
 	"fmt"
 	"github.com/hashicorp/consul/api"
-	"github.com/ymcvalu/grpc-discovery/pkg/instance"
 	"google.golang.org/grpc/resolver"
 	"log"
 	"sync"
@@ -11,14 +10,13 @@ import (
 )
 
 type consulResolver struct {
-	cc        resolver.ClientConn
-	client    *api.Client
-	dc        string
-	key       string
-	mdConvert instance.MetadataConvert
-	done      chan struct{}
-	doneOnce  sync.Once
-	backoff   func(int) time.Duration
+	cc       resolver.ClientConn
+	client   *api.Client
+	dc       string
+	key      string
+	done     chan struct{}
+	doneOnce sync.Once
+	backoff  func(int) time.Duration
 }
 
 func (r *consulResolver) watch() {
@@ -53,11 +51,8 @@ func (r *consulResolver) watch() {
 				Addr:       fmt.Sprintf("%s:%d", svc.Address, svc.Port),
 				ServerName: svc.Service,
 			}
-			if r.mdConvert != nil && len(svc.Meta) > 0 {
-				addresses[i].Metadata = r.mdConvert(svc.Meta)
-			} else {
-				addresses[i].Metadata = &svc.Meta
-			}
+
+			addresses[i].Metadata = &svc.Meta
 		}
 
 		r.cc.UpdateState(resolver.State{
